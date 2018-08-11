@@ -29,67 +29,20 @@ def state_after_action(state, action_index):
 def value_iteration():
     next_value_table = [[0.00] * 4 for _ in range(4)]
     for state in get_all_states():
-    
-
-
-
-def policy_evaluation():
-    global value_table
-    next_value_table = value_table # next value function initialize
-    for state in get_all_states():
-        value = 0.00
         if state == [3, 3]:
             next_value_table[state[0]][state[1]] = 0.0
             continue
-        for action in arrow_keys:
-            next_state = state_after_action(state, action)
-            rew = get_reward(state, action)
-            #print(rew)
-            next_value = get_value(next_state)
-            value += get_policy(state)[arrow_keys[action]] * (rew + discount_factor * next_value)
-            next_value_table[state[0]][state[1]] = round(value, 2)
-			
-    value_table = next_value_table	
+        value_list = []
 
-def policy_improvement():
-    global policy_table
-    next_policy = policy_table
-    for state in get_all_states():
-        if state == [3, 3]:
-            continue
-        value = -99999
-        max_index = []
-
-        result = [0.0, 0.0, 0.0, 0.0]
-		
-        for index, action in enumerate(arrow_keys):
+    for action in arrow_keys:
             next_state = state_after_action(state, action)
             rew = get_reward(state, action)
             next_value = get_value(next_state)
-            temp = rew + discount_factor * next_value	
-            if temp == value:
-                max_index.append(index)	
-            elif temp > value:
-                value = temp
-                max_index.clear()
-                max_index.append(index)
-				
-        prob = 1 / len(max_index)
-        for index in max_index:
-            result[index] = prob
-      		
-        next_policy[state[0]][state[1]] = result
-	
-    policy_table = next_policy
-	
-
-			
-
-	
+            value_list.append((rew + discount_factor * next_value))
+    next_value_table[state[0]][state[1]] = round(max(value_list), 2)       
+    	
 def get_value(state):
     return round(value_table[state[0]][state[1]], 2)
-
-
 
 def get_all_states():
     return [[0,0], [0,1], [0,2], [0,3],[1,0], [1,1], [1,2], [1,3],[2,0], [2,1], [2,2], [2,3],[3,0], [3,1], [3,2], [3,3]]
@@ -126,27 +79,28 @@ register(
 env = gym.make('FrozenLake-v3')        # is_slippery False
                          # Show the initial board
 
-def get_policy(state):
-    global policy_table
-    if state == [3, 3]:
-        return 0.0
-    return policy_table[state[0]][state[1]]
-
-
 def get_action(state):
-    random_pick = random.randrange(100) / 100
-    policy = get_policy(state)
-    policy_sum = 0.0
-    for index, value in enumerate(policy):
-        policy_sum += value
-        if random_pick < policy_sum:
-            return index
+    action_list = []
+    max_value = -99999
+
+    if state == [3, 3]:
+        return []
+    for action in arrow_keys:
+        next_state = state_after_action(state, action)
+        rew = get_reward(state, action)
+        next_value = get_value(next_state)
+        value = rew + discount_factor * next_value
+
+        if value > max_value
+            action_list.clear()
+            action_list.append(action)
+            max_value = value
+        elif value == max_value:
+            action_list.append(action)
+    return action_list
 
 print("Iteration times : 5\n")
 env.render()    
-for _ in range(5):
-    policy_evaluation()
-    policy_improvement()
 state = [0, 0]
 cnt = 1
 path = []
