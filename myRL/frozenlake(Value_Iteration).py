@@ -27,6 +27,7 @@ def state_after_action(state, action_index):
     return (int(row), int(col))
 
 def value_iteration():
+    global value_table
     next_value_table = [[0.00] * 4 for _ in range(4)]
     for state in get_all_states():
         if state == [3, 3]:
@@ -34,12 +35,13 @@ def value_iteration():
             continue
         value_list = []
 
-    for action in arrow_keys:
-            next_state = state_after_action(state, action)
-            rew = get_reward(state, action)
-            next_value = get_value(next_state)
-            value_list.append((rew + discount_factor * next_value))
-    next_value_table[state[0]][state[1]] = round(max(value_list), 2)       
+        for action in arrow_keys:
+                next_state = state_after_action(state, action)
+                rew = get_reward(state, action)
+                next_value = get_value(next_state)
+                value_list.append((rew + discount_factor * next_value))
+        next_value_table[state[0]][state[1]] = round(max(value_list), 2)
+    value_table = next_value_table       
     	
 def get_value(state):
     return round(value_table[state[0]][state[1]], 2)
@@ -91,7 +93,7 @@ def get_action(state):
         next_value = get_value(next_state)
         value = rew + discount_factor * next_value
 
-        if value > max_value
+        if value > max_value:
             action_list.clear()
             action_list.append(action)
             max_value = value
@@ -100,12 +102,15 @@ def get_action(state):
     return action_list
 
 print("Iteration times : 5\n")
+for _ in range(100):
+    value_iteration()
 env.render()    
 state = [0, 0]
 cnt = 1
 path = []
 while True:
     action = get_action(state)
+    print(value_table)
     s, r, done, info = env.step(action)
     env.render()
     if action == 0:
