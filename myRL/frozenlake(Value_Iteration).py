@@ -101,34 +101,32 @@ def get_action(state):
             action_list.append(action)
     return action_list
 
-print("Iteration times : 5\n")
-for _ in range(100):
+for _ in range(10):
     value_iteration()
 env.render()    
 state = [0, 0]
 cnt = 1
 path = []
 while True:
-    action = get_action(state)
-    print(value_table)
-    s, r, done, info = env.step(action)
+    temp = get_action(state)
+    action = temp[random.randrange(100)%len(temp)]
+    #print(value_table)
+    s, r, done, info = env.step(arrow_keys[action])
     env.render()
-    if action == 0:
+    if action == '\x1b[D':
         state = state_after_action(state, '\x1b[D')
         path.append('LEFT')
-    elif action == 1:
+    elif action == '\x1b[B':
         state = state_after_action(state, '\x1b[B')
         path.append('DOWN')
-    elif action == 2:
+    elif action == '\x1b[C':
         state = state_after_action(state, '\x1b[C')
         path.append('RIGHT')
     else:
         state = state_after_action(state,  '\x1b[A')
         path.append('UP')
     if r == 1.0:
-        print("\nPath : ", path)
+        print("\n<Learned Path> : ", path)
         break
     else:
         cnt += 1
-
-print(value_table)
