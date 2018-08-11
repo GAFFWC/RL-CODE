@@ -136,7 +136,7 @@ def get_action(state):
         if random_pick < policy_sum:
             return index
 
-print("Iteration times : 5\n")
+#print("\nIteration times : 5")
 env.render()    
 for _ in range(5):
     policy_evaluation()
@@ -161,9 +161,8 @@ while True:
         state = state_after_action(state,  '\x1b[A')
         path.append('UP')
     if r == 1.0:
-        print("\nPath : ", path)
+        print("\n<Learned Path> : ", path)
         break
     else:
         cnt += 1
 
-print(value_table)
