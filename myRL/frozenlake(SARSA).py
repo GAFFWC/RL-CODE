@@ -46,7 +46,7 @@ def learn(state, action, reward, next_state, next_action):
     #print(state)
     current_q = q_table[state[0]][state[1]][action]
     next_state_q = q_table[next_state[0]][next_state[1]][next_action]
-    new_q = (current_q + learning_rate * (reward + discount_factor * next_state_q - current_q))
+    new_q = current_q + learning_rate * (reward + discount_factor * next_state_q - current_q)
     #print(new_q)
     q_table[state[0]][state[1]][action] = new_q
 
