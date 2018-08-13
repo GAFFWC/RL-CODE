@@ -41,14 +41,11 @@ register(
 env = gym.make('FrozenLake-v3')        # is_slippery False
                          # Show the initial board
 
-def learn(state, action, reward, next_state, next_action):
-    #print(action)
-    #print(state)
-    current_q = q_table[state[0]][state[1]][action]
-    next_state_q = q_table[next_state[0]][next_state[1]][next_action]
-    new_q = current_q + learning_rate * (reward + discount_factor * next_state_q - current_q)
-    #print(new_q)
-    q_table[state[0]][state[1]][action] = new_q
+def learn(state, action, reward, next_state):
+    q_value = q_table[state[0]][state[1]][action]
+    q_new = reward + discount_factor * max(q_table[next_state[0]][next_state[1]])
+    q_table[state[0]][state[1]][action] += learning_rate * (q_new - q_value)
+    
 
 def state_after_action(state, action_index):
     row = state[0]
@@ -137,7 +134,7 @@ for _ in range(1000):
         #print(next_state)
         rew = reward[next_state[0]][next_state[1]]
         next_action = get_action(next_state)
-        learn(state, action, rew, next_state, next_action)
+        learn(state, action, rew, next_state)
         state = next_state
         action = next_action
         print(q_table)
