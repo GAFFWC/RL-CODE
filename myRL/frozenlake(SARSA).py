@@ -9,38 +9,28 @@ init(autoreset=True)    # Reset the terminal mode to display ansi color
 from collections import defaultdict
 import os
 
-LEFT = 0
-DOWN = 1
-RIGHT = 2
-UP = 3
+
 
 discount_factor = 0.8 # set discount factor
-learning_rate = 0.05
+learning_rate = 1 / 64
 epsilon = 0.1
 q_table = [[[0.0, 0.0, 0.0, 0.0] for _ in range(8)] for _ in range(8)]
 
 
 reward = [[0.00] * 8 for _ in range(8)]
 
-reward[6][1] = -30.0
-reward[6][4] = -30.0
-reward[6][6] = -30.0
-reward[7][3] = -30.0
-reward[5][2] = -30.0
-reward[5][6] = -30.0
-reward[5][1] = -30.0
-reward[4][3] = -30.0
-reward[2][3] = -30.0
-reward[3][5] = -30.0
-reward[3][3] = -30.0
-reward[7][7] = 100.0
-
-arrow_keys = {
-    '\x1b[A' : UP,
-    '\x1b[B' : DOWN,
-    '\x1b[C' : RIGHT,
-    '\x1b[D' : LEFT
-}
+reward[6][1] = -1.0
+reward[6][4] = -1.0
+reward[6][6] = -1.0
+reward[7][3] = -1.0
+reward[5][2] = -1.0
+reward[5][6] = -1.0
+reward[5][1] = -1.0
+reward[4][3] = -1.0
+reward[2][3] = -1.0
+reward[3][5] = -1.0
+reward[3][3] = -1.0
+reward[7][7] = 1.0
 
 register(
     id='FrozenLake-v3',
@@ -113,6 +103,20 @@ env.render()
 state = [0, 0]
 cnt = 1
 path = []
+
+
+LEFT = 0
+DOWN = 1
+RIGHT = 2
+UP = 3
+arrow_keys = {
+    '\x1b[A' : UP,
+    '\x1b[B' : DOWN,
+    '\x1b[C' : RIGHT,
+    '\x1b[D' : LEFT
+}
+
+
 
 for _ in range(1000):
     while True:
