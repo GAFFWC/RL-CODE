@@ -123,6 +123,9 @@ def state_after_action(state, action_index):
         row = max(row - 1, 0)
     return int(row), int(col)
 
+#def append_state(state)
+  #  state.append([abs(2 - state[0], 3 - state[1])])
+	
 if __name__ == "__main__":
     agent = DeepSARSAgent()
     global_step = 0
@@ -137,24 +140,40 @@ if __name__ == "__main__":
 
         while True:
             global_step += 1
+            flag = 0
             next_state =  [0, 0, 2, 3, 3, 3, 3, 5, 4, 3, 5, 1, 5, 2, 5, 6, 6, 1, 6, 4, 6, 6, 7, 3, 7, 7]
             action = agent.get_action(state)
             #print(action)
             n, r, d, info = env.step(action)
             #print(n)
             #print(n, r, d, info)
-            if action == 0:
+            if action == 0: #LEFT
                 next_state[0], next_state[1] = state_after_action(state, '\x1b[D')
-            elif action == 1:
-                next_state[0], next_state[1]  = state_after_action(state, '\x1b[B')          
-            elif action == 2:
-                next_state[0], next_state[1]  = state_after_action(state, '\x1b[C')           
-            else:
+                if state[1] == 0:
+                    flag = 1
+                    rew = -0.25
+            elif action == 1: #DOWN
+                next_state[0], next_state[1]  = state_after_action(state, '\x1b[B')    
+                if state[0] == 7:
+                    flag = 1
+                    rew = -0.25      
+            elif action == 2: #RIGHT
+                next_state[0], next_state[1]  = state_after_action(state, '\x1b[C')
+                if state[1] == 7:
+                    flag = 1
+                    rew = -0.25          
+            else: #UP
                 next_state[0], next_state[1]  = state_after_action(state,  '\x1b[A')
+                if state[0] == 0:
+                    flag = 1
+                    rew = -0.25
             
             #print(next_state)
             state = np.reshape(state, [1, 26])
-            rew = reward[next_state[0]][next_state[1]]
+			
+            if flag == 0:
+                rew = reward[next_state[0]][next_state[1]]
+            
             next_action = agent.get_action(next_state)
             agent.train_model(state, action, rew, next_state, next_action, d)
             state = next_state
@@ -178,7 +197,7 @@ if __name__ == "__main__":
                 #print("episode:", e, " score:", score, "global_step", global_step, " epsilon:", agent.epsilon)
                 env.reset()
                 break
-            agent.model.save_weights("./deep_sarsa.h5")
+        agent.model.save_weights("./deep_sarsa.h5")
            
         
 
