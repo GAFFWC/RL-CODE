@@ -152,7 +152,7 @@ if __name__ == "__main__":
             else:
                 next_state[0], next_state[1]  = state_after_action(state,  '\x1b[A')
             
-            print(next_state)
+            #print(next_state)
             state = np.reshape(state, [1, 26])
             rew = reward[next_state[0]][next_state[1]]
             next_action = agent.get_action(next_state)
@@ -164,6 +164,7 @@ if __name__ == "__main__":
             #print(state)
             os.system('cls')
             env.render()
+            print("Count : ", e)
             if d:
 
                 #print(state)
@@ -174,7 +175,7 @@ if __name__ == "__main__":
                 pylab.plot(episodes, scores, 'b')
                 pylab.savefig("./deep-sarsa.png")
                 #print(state)
-                print("episode:", e, " score:", score, "global_step", global_step, " epsilon:", agent.epsilon)
+                #print("episode:", e, " score:", score, "global_step", global_step, " epsilon:", agent.epsilon)
                 env.reset()
                 break
             agent.model.save_weights("./deep_sarsa.h5")
