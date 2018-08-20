@@ -123,15 +123,37 @@ def state_after_action(state, action_index):
         row = max(row - 1, 0)
     return int(row), int(col)
 
-#def append_state(state)
-  #  state.append([abs(2 - state[0], 3 - state[1])])
-	
+def append_state(state):
+    state.append(abs(2 - state[0]))
+    state.append(abs(3 - state[1]))
+    state.append(abs(3 - state[0]))
+    state.append(abs(3 - state[1]))
+    state.append(abs(3 - state[0]))
+    state.append(abs(5 - state[1]))
+    state.append(abs(4 - state[0]))
+    state.append(abs(3 - state[1]))
+    state.append(abs(5 - state[0]))
+    state.append(abs(1 - state[1]))
+    state.append(abs(5 - state[0]))
+    state.append(abs(2 - state[1]))
+    state.append(abs(5 - state[0]))
+    state.append(abs(6 - state[1]))
+    state.append(abs(6 - state[0]))
+    state.append(abs(1 - state[1]))
+    state.append(abs(6 - state[0]))
+    state.append(abs(4 - state[1]))
+    state.append(abs(6 - state[0]))
+    state.append(abs(6 - state[1]))
+    state.append(abs(7 - state[0]))
+    state.append(abs(3 - state[1]))
+    state.append(7)
+    state.append(7)
 if __name__ == "__main__":
     agent = DeepSARSAgent()
     global_step = 0
     temp = [0, 0]
     scores, episodes = [], []
-    for e in range(2500):
+    for e in range(4000):
         d = False
         score = 0
         state = [0, 0, 2, 3, 3, 3, 3, 5, 4, 3, 5, 1, 5, 2, 5, 6, 6, 1, 6, 4, 6, 6, 7, 3, 7, 7]
@@ -141,7 +163,7 @@ if __name__ == "__main__":
         while True:
             global_step += 1
             flag = 0
-            next_state =  [0, 0, 2, 3, 3, 3, 3, 5, 4, 3, 5, 1, 5, 2, 5, 6, 6, 1, 6, 4, 6, 6, 7, 3, 7, 7]
+            next_state =  [0, 0]
             action = agent.get_action(state)
             #print(action)
             n, r, d, info = env.step(action)
@@ -170,7 +192,8 @@ if __name__ == "__main__":
             
             #print(next_state)
             state = np.reshape(state, [1, 26])
-			
+            append_state(next_state)
+            #next_state = np.reshape(next_state, [26, 1])		
             if flag == 0:
                 rew = reward[next_state[0]][next_state[1]]
             
