@@ -35,19 +35,34 @@ class DeepSARSAgent:
         self.discount_factor = 0.99
         self.learning_rate = 0.001
 
-        self.epsilon = 1.0
-        self.epsilon_decay = 0.9999
-        self.epsilon_min = 0.01
         self.model = self.build_model()
-        self.model.load_weights('./deep_sarsa_trained.h5')
+        self.optimizer = self.build_optimizer()
+        self.states, self.actions, self.rewards = [], [], []
+
+        self.model.load_weights('./policy_gradient_trained.h5')
 
     def build_model(self):
         model = Sequential()
         model.add(Dense(30, input_dim = self.state_size, activation = 'relu'))
         model.add(Dense(30, activation = 'relu'))
-        model.add(Dense(self.action_size, activation = 'linear'))
-        model.compile(loss='mse', optimizer = Adam(lr = self.learning_rate))
+        model.add(Dense(self.action_size, activation = 'softmax'))
+        model.summary()
         return model
+
+    def build_optimizer(self):
+        action = K.placeholder(shape = [None, 4])
+        discounted_rewards = K.placeholder(shape = [None, ])
+        action_prob = K.sum(action * self.model.output, axis = 1)
+        cross_entropy = K.log(action_prob) * discounted_rewards
+        loss = -K.sum(cross_entropy)
+
+        optimizer = Adam(lr = self.learning_rate)
+        updates = optimizer.get_updates(self.model.trainable_weights, [], loss)
+        train = K.function([self.model.input, action, discounted_rewards], [], updates = updates)
+
+        return train
+
+
 
     def get_action(self, state):
         if np.random.rand() <= self.epsilon:
@@ -58,27 +73,28 @@ class DeepSARSAgent:
             q_values = self.model.predict(state)
             return np.argmax(q_values[0])
 
-    def train_model(self, state, action, reward, next_state, next_action, done):
-        if self.epsilon > self.epsilon_min:
-            self.epsilon *= self.epsilon_decay
+    def discount_rewards(self, rewards):
+        discounted_rewards = np.zeros_like(rewards)
+        running_add = 0
+        for t in reversed(range(0, len(rewards))):
+            running_add = running_add * self.discount_factor + rewards[t]    
+            discounted_rewards[t] = running_add
+        return discounted_rewards
 
 
-        state = np.float32(state)
-        state = np.reshape(state, [1, 26])
-        next_state = np.float32(next_state)
-        target = self.model.predict(state)[0]
-        next_state = np.reshape(next_state, [1, 26])
-        
+    def append_sample(self, state, action, reward):
+        self.states.append(state[0])
+        self.rewards.append(reward)
+        act = np.zeros(self.action_size)
+        act[action] = 1
+        self.actions.append(act)
 
-        if done:
-            target[action] = reward
-            #print(target)
-        else:
-            target[action] = (reward + self.discount_factor * self.model.predict(next_state)[0][next_action])
-
-        target = np.reshape(target, [1, 4])
-        self.model.fit(state, target, epochs = 1, verbose = 0)
-		
+    def train_model(self):
+        discounted_rewards = np.float32(self.discount_rewards(self.rewards))
+        discounted_rewards -= np.mean(discounted_rewards)
+        discounted_rewards /= np.std(discounted_rewards)
+        self.optimizer([self.states, self.actions, discounted_rewards])
+        self.states, self.actions, self.rewards = [], [], []   
 
 cnt = 1
 path = []
