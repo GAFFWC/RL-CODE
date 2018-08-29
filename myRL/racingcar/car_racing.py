@@ -12,6 +12,17 @@ from gym.utils import colorize, seeding
 import pyglet
 from pyglet import gl
 
+from keras.layers.convolutional import Conv2D
+from keras.layers import Dense, Flatten
+from keras.optimizers import RMSprop
+from keras.models import Sequential
+from skimage.transform import resize
+frim skimage.color import rgb2gray
+from collections import deque
+from keras import backend as K
+import tensorflow as tf
+import random
+
 # Easiest continuous control task to learn from pixels, a top-down racing environment.
 # Discreet control is reasonable in this environment as well, on/off discretisation is
 # fine.
@@ -61,6 +72,8 @@ BORDER = 8/SCALE
 BORDER_MIN_COUNT = 4
 
 ROAD_COLOR = [0.4, 0.4, 0.4]
+
+EPISODES = 50000
 
 class FrictionDetector(contactListener):
     def __init__(self, env):
@@ -463,40 +476,129 @@ class DQNAgent:
         self.epsilon = 1
         self.epsilon_start, self.epsilon_end = 1.0, 0.1
         self.exploration_steps = 1000000
-        self.epsilon_decay_step = (self.epsilon_start - self.epsilon_end) \ / self.explor
+        self.epsilon_decay_step = (self.epsilon_start - self.epsilon_end) / self.exploration_steps
+        self.batch_size = 32
+        self.train_start = 50000
+        self.update_target_rate = 10000
+        self.discount_factor = 0.99
+        self.memory = deque(maxlen = 400000)
+        self.no_op_steps = 30
+
+        self.model = self.build_model()
+        self.target_model = self.build_model()
+        self.update_target_model()
+
+        self.optimizer = self.optimizer()
+
+        self.sess = tf.InteractiveSession()
+        K.set_session(self.sess)
+        
+        self.avg_q_max, self.avg_loss = 0, 0
+        self.summary_writer = tf.summary.FileWriter('./RacingCar_DQN', self.sess.graph)
+        self.sess.run(tf.global_variables_initializer())
+
+        if self.load_model:
+            self.model.load_weights("./RacingCar_DQN.h5")
+
+    def optimizer(self):
+        a = K.placeholder(shape = (None,), dtype = 'int32')
+        y = K.placeholder(shape = (None,), dtype = 'float32')
+
+        prediction = self.model.output
+        a_one_hot = K.one_hot(a, self.action_size)
+        q_value = K.sum(prediction * a_one_hot, axis = 1)
+        error = K.abs(y - q_value)
+
+        quadratic_part = K.clip(error, 0.0, 1.0)
+        linear_part = error - quadratic_part
+        loss = K.mean(0.5 * K.square(quadratic_part) + linear_part)
+        optimizer = RMSprop(lr = 0.00025, epsilon = 0.01)
+        updates = optimizer.get_updates(self.model.trainable_weights, [], loss)
+        train = K.function([self.model.input, a, y], [loss], updates = updates)
+
+        return train
+
+    def build_model(self):
+        model = Sequential()
+        model.add(Conv2D(32, (8, 8), strides = (4, 4), activation = 'relu', input_shape = self.state_size))
+        model.add(Conv2D(64, (4, 4), strides = (2, 2), activation = 'relu'))
+        model.add(Flatten())
+        model.add(Dense(512, activation = 'relu'))
+        model.add(Dense(self.action_size))
+        model.summary()
+        return model
+    
+    def update_target_model(self):
+        self.target_model.set_weights(self.model.get_weights())
+
+    def get_action(self, history):
+        history = np.float32(history / 255.0)
+        if np.random.rand() <= self.epsilon:
+            return random.randrange(self.action_size)
+        else:
+            q_value = self.model.predict(history)
+            return np.argmax(q_value[0])
+
+    def append_sample(self, history, action, reward, next_history, dead):
+        self.memory.append((history, action, reward, next_history, dead))
+
+    def train_model(self):
+        if self.epsilon > self.epsilon_end:
+            self.epsilon -= self.epsilon_decay_step
+        mini_batch = random.sample(self.memory, self.batch_size)
+
+        history = np.zeros((self.batch_size, self.state_size[0], self.state_size[1], self.state_size[2]))
+        next_history = np.zeros((self.batch_size, self.state_size[0], self.state_size[1], self.state_size[2]))
+        target = np.zeros((self.batch_size,))
+        actions, rewards, deads = [], [], []
 
 
+        for i in range((self.batch_size, )):
+            history[i] = np.float32(mini_batch[i][0] / 255.)
+            next_history[i] = np.float32(mini_batch[i][3] / 255.)
+            actions.append(mini_batch[i][1])
+            rewards.append(mini_batch[i][2])
+            deads.append(mini_batch[i][4])
+        
+        target_value = self.target_model.predict(next_history)
 
+        for i in range(self.batch_size):
+            if deads[i]:
+                target[i] = rewards[i]
+            else:
+                target[i] = rewards[i] + self.discount_factor * \ np.amax(target_value[i])
+        loss = self.optimizer([history, actions, target])
+        self.avg_loss += loss[0]
 
+    def setup_summary(self):
+        episode_total_reward = tf.Variable(0.)
+        episode_avg_max_q = tf.Variable(0.)
+        episode_duration = tf.Variable(0.)
+        episode_avg_loss = tf.Variable(0.)
 
+        tf.summary.scalar('Total Reward/Episode', episode_total_reward)
+        tf.summary.scalar('Average Max Q/Episode', episode_avg_max_q)
+        tf.summary.scalar('Duration/Episode', episode_duration)
+        tf.summary.scalar('Average Loss/Episode', episode_avg_loss)
 
+        summary_vars = [episode_total_reward, episode_avg_max_q, epospde_duration, episode_avg_loss]
+        summary_placeholders = [tf.placeholder(tf.float32) for _ in range(len(summary_vars))]
+        update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
+        summary_op = tf.summary.merge_all()
+        return summary_placeholders, update_ops, summary_op
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    def pre_processing(observe):
+        processed_observe = np.uint8(resize(rgb2gray(observe), (96, 96), mode = 'constant') * 255)
+        return processed_observe
 
 
 if __name__=="__main__":
     from pyglet.window import key
     a = np.array( [0.0, 0.0, 0.0] )
+
+    agent = DQNAgent(action_size = 3)
+    scores, episodes, global_step = [], [], 0
+    
     def key_press(k, mod): # 왼쪽, 오른쪽 방향키 : a[0]이 음수이면 왼쪽, 양수이면 오른쪽 / 위 방향키 : a[1]이 양수 / 아래 방향키(브레이크) : a[2]가 양수
         global restart
         if k==0xff0d: restart = True
@@ -521,6 +623,7 @@ if __name__=="__main__":
         total_reward = 0.0
         steps = 0
         restart = False
+        
         while True:
             s, r, done, info = env.step(a)
             #print(s)
