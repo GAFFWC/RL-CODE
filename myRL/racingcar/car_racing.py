@@ -17,7 +17,7 @@ from keras.layers import Dense, Flatten
 from keras.optimizers import RMSprop
 from keras.models import Sequential
 from skimage.transform import resize
-frim skimage.color import rgb2gray
+from skimage.color import rgb2gray
 from collections import deque
 from keras import backend as K
 import tensorflow as tf
@@ -144,147 +144,151 @@ class CarRacing(gym.Env):
         self.car.destroy()
 
     def _create_track(self):
+        random_flag = True
         CHECKPOINTS = 12
+        if random_flag == True:
+            random_flag = False
+            # Create checkpoints
+            checkpoints = []
+            for c in range(CHECKPOINTS):
+                alpha = 2*math.pi*c/CHECKPOINTS + self.np_random.uniform(0, 2*math.pi*1/CHECKPOINTS)
+                rad = self.np_random.uniform(TRACK_RAD/3, TRACK_RAD)
+                if c==0:
+                    alpha = 0
+                    rad = 1.5*TRACK_RAD
+                if c==CHECKPOINTS-1:
+                    alpha = 2*math.pi*c/CHECKPOINTS
+                    self.start_alpha = 2*math.pi*(-0.5)/CHECKPOINTS
+                    rad = 1.5*TRACK_RAD
+                checkpoints.append( (alpha, rad*math.cos(alpha), rad*math.sin(alpha)) )
 
-        # Create checkpoints
-        checkpoints = []
-        for c in range(CHECKPOINTS):
-            alpha = 2*math.pi*c/CHECKPOINTS + self.np_random.uniform(0, 2*math.pi*1/CHECKPOINTS)
-            rad = self.np_random.uniform(TRACK_RAD/3, TRACK_RAD)
-            if c==0:
-                alpha = 0
-                rad = 1.5*TRACK_RAD
-            if c==CHECKPOINTS-1:
-                alpha = 2*math.pi*c/CHECKPOINTS
-                self.start_alpha = 2*math.pi*(-0.5)/CHECKPOINTS
-                rad = 1.5*TRACK_RAD
-            checkpoints.append( (alpha, rad*math.cos(alpha), rad*math.sin(alpha)) )
+                #checkpoints.append( (alpha, rad*math.cos(alpha), rad*math.sin(alpha)) )
+            #print "\n".join(str(h) for h in checkpoints)
+            #self.road_poly = [ (    # uncomment this to see checkpoints
+            #    [ (tx,ty) for a,tx,ty in checkpoints ],
+            #    (0.7,0.7,0.9) ) ]
+            
+            self.road = []
 
-        #print "\n".join(str(h) for h in checkpoints)
-        #self.road_poly = [ (    # uncomment this to see checkpoints
-        #    [ (tx,ty) for a,tx,ty in checkpoints ],
-        #    (0.7,0.7,0.9) ) ]
-        self.road = []
+            # Go from one checkpoint to another to create track
+            x, y, beta = 1.5*TRACK_RAD, 0, 0
+            dest_i = 0
+            laps = 0
+            track = []
+            no_freeze = 2500
+            visited_other_side = False
+            while 1:
+                alpha = math.atan2(y, x)
+                if visited_other_side and alpha > 0:
+                    laps += 1
+                    visited_other_side = False
+                if alpha < 0:
+                    visited_other_side = True
+                    alpha += 2*math.pi
+                while True: # Find destination from checkpoints
+                    failed = True
+                    while True:
+                        dest_alpha, dest_x, dest_y = checkpoints[dest_i % len(checkpoints)]
+                        if alpha <= dest_alpha:
+                            failed = False
+                            break
+                        dest_i += 1
+                        if dest_i % len(checkpoints) == 0: break
+                    if not failed: break
+                    alpha -= 2*math.pi
+                    continue
+                r1x = math.cos(beta)
+                r1y = math.sin(beta)
+                p1x = -r1y
+                p1y = r1x
+                dest_dx = dest_x - x  # vector towards destination
+                dest_dy = dest_y - y
+                proj = r1x*dest_dx + r1y*dest_dy  # destination vector projected on rad
+                while beta - alpha >  1.5*math.pi: beta -= 2*math.pi
+                while beta - alpha < -1.5*math.pi: beta += 2*math.pi
+                prev_beta = beta
+                proj *= SCALE
+                if proj >  0.3: beta -= min(TRACK_TURN_RATE, abs(0.001*proj))
+                if proj < -0.3: beta += min(TRACK_TURN_RATE, abs(0.001*proj))
+                x += p1x*TRACK_DETAIL_STEP
+                y += p1y*TRACK_DETAIL_STEP
+                track.append( (alpha,prev_beta*0.5 + beta*0.5,x,y) )
+                if laps > 4: break
+                no_freeze -= 1
+                if no_freeze==0: break
+            #print "\n".join([str(t) for t in enumerate(track)])
 
-        # Go from one checkpoint to another to create track
-        x, y, beta = 1.5*TRACK_RAD, 0, 0
-        dest_i = 0
-        laps = 0
-        track = []
-        no_freeze = 2500
-        visited_other_side = False
-        while 1:
-            alpha = math.atan2(y, x)
-            if visited_other_side and alpha > 0:
-                laps += 1
-                visited_other_side = False
-            if alpha < 0:
-                visited_other_side = True
-                alpha += 2*math.pi
-            while True: # Find destination from checkpoints
-                failed = True
-                while True:
-                    dest_alpha, dest_x, dest_y = checkpoints[dest_i % len(checkpoints)]
-                    if alpha <= dest_alpha:
-                        failed = False
-                        break
-                    dest_i += 1
-                    if dest_i % len(checkpoints) == 0: break
-                if not failed: break
-                alpha -= 2*math.pi
-                continue
-            r1x = math.cos(beta)
-            r1y = math.sin(beta)
-            p1x = -r1y
-            p1y = r1x
-            dest_dx = dest_x - x  # vector towards destination
-            dest_dy = dest_y - y
-            proj = r1x*dest_dx + r1y*dest_dy  # destination vector projected on rad
-            while beta - alpha >  1.5*math.pi: beta -= 2*math.pi
-            while beta - alpha < -1.5*math.pi: beta += 2*math.pi
-            prev_beta = beta
-            proj *= SCALE
-            if proj >  0.3: beta -= min(TRACK_TURN_RATE, abs(0.001*proj))
-            if proj < -0.3: beta += min(TRACK_TURN_RATE, abs(0.001*proj))
-            x += p1x*TRACK_DETAIL_STEP
-            y += p1y*TRACK_DETAIL_STEP
-            track.append( (alpha,prev_beta*0.5 + beta*0.5,x,y) )
-            if laps > 4: break
-            no_freeze -= 1
-            if no_freeze==0: break
-        #print "\n".join([str(t) for t in enumerate(track)])
+            # Find closed loop range i1..i2, first loop should be ignored, second is OK
+            i1, i2 = -1, -1
+            i = len(track)
+            while True:
+                i -= 1
+                if i==0: return False  # Failed
+                pass_through_start = track[i][0] > self.start_alpha and track[i-1][0] <= self.start_alpha
+                if pass_through_start and i2==-1:
+                    i2 = i
+                elif pass_through_start and i1==-1:
+                    i1 = i
+                    break
+            print("Track generation: %i..%i -> %i-tiles track" % (i1, i2, i2-i1))
+            assert i1!=-1
+            assert i2!=-1
 
-        # Find closed loop range i1..i2, first loop should be ignored, second is OK
-        i1, i2 = -1, -1
-        i = len(track)
-        while True:
-            i -= 1
-            if i==0: return False  # Failed
-            pass_through_start = track[i][0] > self.start_alpha and track[i-1][0] <= self.start_alpha
-            if pass_through_start and i2==-1:
-                i2 = i
-            elif pass_through_start and i1==-1:
-                i1 = i
-                break
-        print("Track generation: %i..%i -> %i-tiles track" % (i1, i2, i2-i1))
-        assert i1!=-1
-        assert i2!=-1
+            track = track[i1:i2-1]
 
-        track = track[i1:i2-1]
+            first_beta = track[0][1]
+            first_perp_x = math.cos(first_beta)
+            first_perp_y = math.sin(first_beta)
+            # Length of perpendicular jump to put together head and tail
+            well_glued_together = np.sqrt(
+                np.square( first_perp_x*(track[0][2] - track[-1][2]) ) +
+                np.square( first_perp_y*(track[0][3] - track[-1][3]) ))
+            if well_glued_together > TRACK_DETAIL_STEP:
+                return False
 
-        first_beta = track[0][1]
-        first_perp_x = math.cos(first_beta)
-        first_perp_y = math.sin(first_beta)
-        # Length of perpendicular jump to put together head and tail
-        well_glued_together = np.sqrt(
-            np.square( first_perp_x*(track[0][2] - track[-1][2]) ) +
-            np.square( first_perp_y*(track[0][3] - track[-1][3]) ))
-        if well_glued_together > TRACK_DETAIL_STEP:
-            return False
+            # Red-white border on hard turns
+            border = [False]*len(track)
+            for i in range(len(track)):
+                good = True
+                oneside = 0
+                for neg in range(BORDER_MIN_COUNT):
+                    beta1 = track[i-neg-0][1]
+                    beta2 = track[i-neg-1][1]
+                    good &= abs(beta1 - beta2) > TRACK_TURN_RATE*0.2
+                    oneside += np.sign(beta1 - beta2)
+                good &= abs(oneside) == BORDER_MIN_COUNT
+                border[i] = good
+            for i in range(len(track)):
+                for neg in range(BORDER_MIN_COUNT):
+                    border[i-neg] |= border[i]
 
-        # Red-white border on hard turns
-        border = [False]*len(track)
-        for i in range(len(track)):
-            good = True
-            oneside = 0
-            for neg in range(BORDER_MIN_COUNT):
-                beta1 = track[i-neg-0][1]
-                beta2 = track[i-neg-1][1]
-                good &= abs(beta1 - beta2) > TRACK_TURN_RATE*0.2
-                oneside += np.sign(beta1 - beta2)
-            good &= abs(oneside) == BORDER_MIN_COUNT
-            border[i] = good
-        for i in range(len(track)):
-            for neg in range(BORDER_MIN_COUNT):
-                border[i-neg] |= border[i]
-
-        # Create tiles
-        for i in range(len(track)):
-            alpha1, beta1, x1, y1 = track[i]
-            alpha2, beta2, x2, y2 = track[i-1]
-            road1_l = (x1 - TRACK_WIDTH*math.cos(beta1), y1 - TRACK_WIDTH*math.sin(beta1))
-            road1_r = (x1 + TRACK_WIDTH*math.cos(beta1), y1 + TRACK_WIDTH*math.sin(beta1))
-            road2_l = (x2 - TRACK_WIDTH*math.cos(beta2), y2 - TRACK_WIDTH*math.sin(beta2))
-            road2_r = (x2 + TRACK_WIDTH*math.cos(beta2), y2 + TRACK_WIDTH*math.sin(beta2))
-            t = self.world.CreateStaticBody( fixtures = fixtureDef(
-                shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
-                ))
-            t.userData = t
-            c = 0.01*(i%3)
-            t.color = [ROAD_COLOR[0] + c, ROAD_COLOR[1] + c, ROAD_COLOR[2] + c]
-            t.road_visited = False
-            t.road_friction = 1.0
-            t.fixtures[0].sensor = True
-            self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
-            self.road.append(t)
-            if border[i]:
-                side = np.sign(beta2 - beta1)
-                b1_l = (x1 + side* TRACK_WIDTH        *math.cos(beta1), y1 + side* TRACK_WIDTH        *math.sin(beta1))
-                b1_r = (x1 + side*(TRACK_WIDTH+BORDER)*math.cos(beta1), y1 + side*(TRACK_WIDTH+BORDER)*math.sin(beta1))
-                b2_l = (x2 + side* TRACK_WIDTH        *math.cos(beta2), y2 + side* TRACK_WIDTH        *math.sin(beta2))
-                b2_r = (x2 + side*(TRACK_WIDTH+BORDER)*math.cos(beta2), y2 + side*(TRACK_WIDTH+BORDER)*math.sin(beta2))
-                self.road_poly.append(( [b1_l, b1_r, b2_r, b2_l], (1,1,1) if i%2==0 else (1,0,0) ))
-        self.track = track
+            # Create tiles
+            for i in range(len(track)):
+                alpha1, beta1, x1, y1 = track[i]
+                alpha2, beta2, x2, y2 = track[i-1]
+                road1_l = (x1 - TRACK_WIDTH*math.cos(beta1), y1 - TRACK_WIDTH*math.sin(beta1))
+                road1_r = (x1 + TRACK_WIDTH*math.cos(beta1), y1 + TRACK_WIDTH*math.sin(beta1))
+                road2_l = (x2 - TRACK_WIDTH*math.cos(beta2), y2 - TRACK_WIDTH*math.sin(beta2))
+                road2_r = (x2 + TRACK_WIDTH*math.cos(beta2), y2 + TRACK_WIDTH*math.sin(beta2))
+                t = self.world.CreateStaticBody( fixtures = fixtureDef(
+                    shape=polygonShape(vertices=[road1_l, road1_r, road2_r, road2_l])
+                    ))
+                t.userData = t
+                c = 0.01*(i%3)
+                t.color = [ROAD_COLOR[0] + c, ROAD_COLOR[1] + c, ROAD_COLOR[2] + c]
+                t.road_visited = False
+                t.road_friction = 1.0
+                t.fixtures[0].sensor = True
+                self.road_poly.append(( [road1_l, road1_r, road2_r, road2_l], t.color ))
+                self.road.append(t)
+                if border[i]:
+                    side = np.sign(beta2 - beta1)
+                    b1_l = (x1 + side* TRACK_WIDTH        *math.cos(beta1), y1 + side* TRACK_WIDTH        *math.sin(beta1))
+                    b1_r = (x1 + side*(TRACK_WIDTH+BORDER)*math.cos(beta1), y1 + side*(TRACK_WIDTH+BORDER)*math.sin(beta1))
+                    b2_l = (x2 + side* TRACK_WIDTH        *math.cos(beta2), y2 + side* TRACK_WIDTH        *math.sin(beta2))
+                    b2_r = (x2 + side*(TRACK_WIDTH+BORDER)*math.cos(beta2), y2 + side*(TRACK_WIDTH+BORDER)*math.sin(beta2))
+                    self.road_poly.append(( [b1_l, b1_r, b2_r, b2_l], (1,1,1) if i%2==0 else (1,0,0) ))
+            self.track = track
         return True
 
     def reset(self):
@@ -467,7 +471,7 @@ class CarRacing(gym.Env):
         self.score_label.draw()
 
 class DQNAgent:
-    def __init__(self, state_size, action_size):
+    def __init__(self, action_size):
         self.render = False
         self.load_model = False
 
@@ -566,7 +570,7 @@ class DQNAgent:
             if deads[i]:
                 target[i] = rewards[i]
             else:
-                target[i] = rewards[i] + self.discount_factor * \ np.amax(target_value[i])
+                target[i] = rewards[i] + self.discount_factor * np.amax(target_value[i])
         loss = self.optimizer([history, actions, target])
         self.avg_loss += loss[0]
 
@@ -581,22 +585,33 @@ class DQNAgent:
         tf.summary.scalar('Duration/Episode', episode_duration)
         tf.summary.scalar('Average Loss/Episode', episode_avg_loss)
 
-        summary_vars = [episode_total_reward, episode_avg_max_q, epospde_duration, episode_avg_loss]
+        summary_vars = [episode_total_reward, episode_avg_max_q, episode_duration, episode_avg_loss]
         summary_placeholders = [tf.placeholder(tf.float32) for _ in range(len(summary_vars))]
         update_ops = [summary_vars[i].assign(summary_placeholders[i]) for i in range(len(summary_vars))]
         summary_op = tf.summary.merge_all()
         return summary_placeholders, update_ops, summary_op
 
-    def pre_processing(observe):
-        processed_observe = np.uint8(resize(rgb2gray(observe), (96, 96), mode = 'constant') * 255)
-        return processed_observe
+def pre_processing(observe):
+    processed_observe = np.uint8(resize(rgb2gray(observe), (96, 96), mode = 'constant') * 255)
+    return processed_observe
+
+def Real_action(index, a):
+    if index == 0:
+        a[0] = -1.0
+    if index == 1:
+        a[0] = +1.0
+    if index == 2:
+        a[1] = +1.0
+    if index == 3:
+        a[2] = +0.8
+    return a
 
 
 if __name__=="__main__":
     from pyglet.window import key
     a = np.array( [0.0, 0.0, 0.0] )
 
-    agent = DQNAgent(action_size = 3)
+    agent = DQNAgent(action_size = 4) # 0 : 왼쪽, 1 : 오른쪽, 2 : 위, 3 : 아래
     scores, episodes, global_step = [], [], 0
     
     def key_press(k, mod): # 왼쪽, 오른쪽 방향키 : a[0]이 음수이면 왼쪽, 양수이면 오른쪽 / 위 방향키 : a[1]이 양수 / 아래 방향키(브레이크) : a[2]가 양수
@@ -616,8 +631,14 @@ if __name__=="__main__":
     record_video = False
     if record_video:
         env.monitor.start('/tmp/video-test', force=True)
-    env.viewer.window.on_key_press = key_press
-    env.viewer.window.on_key_release = key_release
+    #env.viewer.window.on_key_press = key_press
+    #env.viewer.window.on_key_release = key_release
+    env.reset()
+    for _ in range(random.randint(1, agent.no_op_steps)):
+        observe, _, _, _ = env.step(a)
+    state = pre_processing(observe)
+    history = np.stack((state, state, state), axis = 2)
+    history = np.reshape([history], (1, 96, 96, 3))    
     while True:
         env.reset()
         total_reward = 0.0
@@ -625,13 +646,46 @@ if __name__=="__main__":
         restart = False
         
         while True:
-            s, r, done, info = env.step(a)
+            dead = False
+            action = agent.get_action(history)
+            Real_action(action, a)
+            a[1] = 1.0
+            observe, r, done, info = env.step(a)
+            print(a)
+            for i in range(len(a)):
+                a[i] = 0
+
+            env.render()
             #print(s)
-            print(np.shape(s)) # state는 (96, 96, 3)
+            #print(np.shape(s)) # state는 (96, 96, 3)
+            next_state = pre_processing(observe)
+            #print(np.shape(next_state))
+            next_state = np.reshape([next_state], (1, 96, 96, 1))
+            next_history = np.append(next_state, history[:,:,:,:2], axis = 3)
+          #  print(np.shape(history))
+            agent.avg_q_max += np.max(agent.model.predict(np.float32(history / 255.))[0])
+
             total_reward += r
+            agent.append_sample(history, action, total_reward, next_history, dead)
+            if len(agent.memory) >= agent.train_start:
+                agent.train_model()
+            if steps % agent.update_target_rate == 0:
+                agent.update_target_model()
+            #history = next_history
+           # print(np.shape(next_history))
+
             if steps % 200 == 0 or done:
-                print("\naction " + str(["{:+0.2f}".format(x) for x in a]))
-                print("step {} total_reward {:+0.2f}".format(steps, total_reward))
+                if steps > agent.train_start:
+                    stats = [total_reward, agent.avg_q_max / float(steps), steps, agent.avg_loss / float(steps)]
+                    for i in range(len(stats)):
+                        agent.sess.run(agent.update_ops[i], feed_dict = {agent.summary_placeholders[i]: float(stats[i])})
+                    summary_str = agent.sess.run(agent.summary_op)
+                    agent.summary_writer.add_summary(summary_str, steps + 1)
+                
+                agent.avg_loss, agent.avg_loss = 0, 0
+                agent.model.save_weights("./RacingCar_DQN_model.h5")
+                #print("\naction " + str(["{:+0.2f}".format(x) for x in a]))
+                #print("step {} total_reward {:+0.2f}".format(steps, total_reward))
                 #import matplotlib.pyplot as plt
                 #plt.imshow(s)
                 #plt.savefig("test.jpeg")
