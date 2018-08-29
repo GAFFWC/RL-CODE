@@ -13,6 +13,7 @@ from keras.layers import Dense
 from keras.optimizers import Adam
 from keras.models import Sequential
 import pylab
+from keras import backend as K
 
 EPISODES = 2500
 
@@ -65,13 +66,11 @@ class DeepSARSAgent:
 
 
     def get_action(self, state):
-        if np.random.rand() <= self.epsilon:
-            return random.randrange(self.action_size)
-        else:
             state = np.float32(state)
             state = np.reshape(state, [1, 26])			
-            q_values = self.model.predict(state)
-            return np.argmax(q_values[0])
+            policy = self.model.predict(state)
+            #print(policy[0])
+            return np.random.choice(self.action_size, 1, p = policy[0])
 
     def discount_rewards(self, rewards):
         discounted_rewards = np.zeros_like(rewards)
@@ -93,6 +92,7 @@ class DeepSARSAgent:
         discounted_rewards = np.float32(self.discount_rewards(self.rewards))
         discounted_rewards -= np.mean(discounted_rewards)
         discounted_rewards /= np.std(discounted_rewards)
+        #print(self.states, self.actions, discounted_rewards)
         self.optimizer([self.states, self.actions, discounted_rewards])
         self.states, self.actions, self.rewards = [], [], []   
 
@@ -173,70 +173,75 @@ if __name__ == "__main__":
         d = False
         score = 0
         state = [0, 0, 2, 3, 3, 3, 3, 5, 4, 3, 5, 1, 5, 2, 5, 6, 6, 1, 6, 4, 6, 6, 7, 3, 7, 7]
-       
+        time_stamp = 0.0
         #print(state)
 
         while True:
+            time_stamp -= 0.005
             global_step += 1
             flag = 0
             next_state =  [0, 0]
             action = agent.get_action(state)
-            #print(action)
-            n, r, d, info = env.step(action)
+            print(action[0])
+            n, r, d, info = env.step(action[0])
             #print(n)
             #print(n, r, d, info)
-            if action == 0: #LEFT
+            if action[0] == 0: #LEFT
                 next_state[0], next_state[1] = state_after_action(state, '\x1b[D')
                 if state[1] == 0:
                     flag = 1
-                    rew = -0.0
-            elif action == 1: #DOWN
+                    rew = -0.25
+            elif action[0] == 1: #DOWN
                 next_state[0], next_state[1]  = state_after_action(state, '\x1b[B')    
                 if state[0] == 7:
                     flag = 1
-                    rew = -0.0     
-            elif action == 2: #RIGHT
+                    rew = -0.25   
+            elif action[0] == 2: #RIGHT
                 next_state[0], next_state[1]  = state_after_action(state, '\x1b[C')
                 if state[1] == 7:
                     flag = 1
-                    rew = -0.0          
+                    rew = -0.25          
             else: #UP
                 next_state[0], next_state[1]  = state_after_action(state,  '\x1b[A')
                 if state[0] == 0:
                     flag = 1
-                    rew = -0.0
+                    rew = -0.25
             
             #print(next_state)
             state = np.reshape(state, [1, 26])
             append_state(next_state)
-            #next_state = np.reshape(next_state, [26, 1])		
+	
             if flag == 0:
                 rew = reward[next_state[0]][next_state[1]]
             
             next_action = agent.get_action(next_state)
-            agent.train_model(state, action, rew, next_state, next_action, d)
+            #print(state, action[0], rew)
+            rew += time_stamp
+            agent.append_sample(state, action, rew)
+            next_state = np.reshape(next_state, [26, 1])	
             state = next_state
             #print(state)
             score += rew
-            state = copy.deepcopy(next_state)
+            #state = copy.deepcopy(next_state)
             #print(state)
             os.system('cls')
             env.render()
             print("Count : ", e)
             if d:
-
+                agent.train_model()
+                
                 #print(state)
                 #env.render()
                 #print(target)
                 scores.append(score)
                 episodes.append(e)
                 pylab.plot(episodes, scores, 'b')
-                pylab.savefig("./deep-sarsa.png")
+                pylab.savefig("./policy-gradient.png")
                 #print(state)
                 #print("episode:", e, " score:", score, "global_step", global_step, " epsilon:", agent.epsilon)
                 env.reset()
                 break
-        agent.model.save_weights("./deep_sarsa.h5")
+        agent.model.save_weights("./policy_gradient.h5")
            
         
 
